@@ -1,0 +1,31 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Server",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/packages/server/src/server.ts",
+      "runtimeArgs": ["-r", "ts-node/register"],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "env": {
+        "GEMINI_API_KEY": "${env:GEMINI_API_KEY}"
+      }
+    },
+    {
+      "name": "Debug VS Code Extension",
+      "type": "pwa-extensionHost",
+      "request": "launch",
+      "program": "${env:VSCODE_INSTALL}/bin/code",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/packages/vscode-client"
+      ],
+      "preLaunchTask": "npm: build (monorepo)",
+      "internalConsoleOptions": "neverOpen",
+      "env": {
+        "GEMINI_API_KEY": "${env:GEMINI_API_KEY}"
+      }
+    }
+  ]
+}

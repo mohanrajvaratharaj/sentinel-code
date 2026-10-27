@@ -1,0 +1,85 @@
+{
+  "name": "@sentinel-code/vscode-client",
+  "version": "0.1.0",
+  "description": "VS Code extension for AI-powered pre-PR code review",
+  "publisher": "sentinel-code",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "code-review",
+    "ai",
+    "gemini",
+    "pre-pr",
+    "linter"
+  ],
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:javascript",
+    "onLanguage:python",
+    "onLanguage:go"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Sentinel Code Review",
+      "properties": {
+        "sentinel-code.enableGeminiReview": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Gemini AI-powered code review"
+        },
+        "sentinel-code.enableFastGate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Fast-Gate static analysis checks"
+        },
+        "sentinel-code.autoAnalyzeOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically analyze files on save"
+        },
+        "sentinel-code.geminiModel": {
+          "type": "string",
+          "default": "gemini-2.5-flash",
+          "description": "Gemini model to use for code review"
+        },
+        "sentinel-code.maxDiffSizeBytes": {
+          "type": "number",
+          "default": 1048576,
+          "description": "Maximum diff size in bytes before skipping Gemini review"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "sentinelCode.triggerReview",
+        "title": "Sentinel: Trigger Code Review",
+        "category": "Sentinel"
+      },
+      {
+        "command": "sentinelCode.showOutput",
+        "title": "Sentinel: Show Output",
+        "category": "Sentinel"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "prepublishOnly": "npm run build",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.0"
+  }
+}

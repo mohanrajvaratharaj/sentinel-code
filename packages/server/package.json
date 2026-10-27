@@ -1,0 +1,24 @@
+{
+  "name": "@sentinel-code/server",
+  "version": "0.1.0",
+  "description": "LSP server for AI-powered pre-PR code review",
+  "main": "dist/server.js",
+  "bin": {
+    "sentinel-code-lsp": "dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@google/genai": "^2.31.0",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.11",
+    "vscode-uri": "^3.0.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.0"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "sentinel-code",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-powered pre-PR code review tool using LSP and Gemini",
+  "license": "MIT",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "build:server": "npm run build --workspace=@sentinel-code/server",
+    "build:client": "npm run build --workspace=@sentinel-code/vscode-client",
+    "watch:server": "npm run watch --workspace=@sentinel-code/server",
+    "lint": "npm run lint --workspaces",
+    "clean": "npm run clean --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

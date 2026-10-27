@@ -1,0 +1,7 @@
+{
+  "sentinel-code.enableGeminiReview": true,
+  "sentinel-code.enableFastGate": true,
+  "sentinel-code.autoAnalyzeOnSave": true,
+  "sentinel-code.geminiModel": "gemini-2.5-flash",
+  "sentinel-code.maxDiffSizeBytes": 1048576
+}

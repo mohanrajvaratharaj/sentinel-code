@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+packages/*/dist/
+packages/*/out/
+
+# VS Code
+.vscode/*.json
+!.vscode/settings.json
+!.vscode/launch.json
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+
+# TypeScript cache
+*.tsbuildinfo
+
+# VS Code extension
+*.vsix
