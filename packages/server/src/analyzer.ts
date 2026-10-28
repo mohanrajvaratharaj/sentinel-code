@@ -12,6 +12,8 @@ import {
 } from './types';
 import { DiagnosticSeverity } from 'vscode-languageserver';
 import { GoogleGenAI } from '@google/genai';
+import { PIIScrubber, scrubDiffPII } from './pii-scrubber';
+import { chunkDiff, buildCompactDiff, getDiffSummary, DiffChunk } from './diff-chunker';
 
 /**
  * Gemini review response schema for structured output.
@@ -55,19 +57,21 @@ interface GeminiIssue {
   };
 }
 
-/**
- * Analyzer class that orchestrates the three-stage review pipeline:
- * 1. Fast-Gate: Local regex/AST rules for immediate checks
- * 2. Team Rules: Custom rules from .github/review-rules.md
- * 3. Gemini JSON Review: AI-powered review using Gemini 2.5 Flash
- */
+  /**
+   * Analyzer class that orchestrates the three-stage review pipeline:
+   * 1. Fast-Gate: Local regex/AST rules for immediate checks
+   * 2. Team Rules: Custom rules from .github/review-rules.md
+   * 3. Gemini JSON Review: AI-powered review using Gemini with PII scrubbing and smart chunking
+   */
 export class Analyzer {
   private config: SentinelConfig;
   private teamRules: string | null;
+  private piiScrubber: PIIScrubber;
 
   constructor(config: SentinelConfig) {
     this.config = config;
     this.teamRules = null;
+    this.piiScrubber = new PIIScrubber(config.piiScrubber);
   }
 
   /**
@@ -125,15 +129,82 @@ export class Analyzer {
     // Stage 2: Load team rules for context
     const teamRules = await this.loadTeamRules();
 
-    // Stage 3: Gemini JSON Review
+    // Stage 3: Gemini JSON Review with PII scrubbing and smart chunking
     let geminiResult: GeminiReviewResult | undefined;
     if (this.config.enableGeminiReview && this.hasGeminiApiKey()) {
       // Check diff size limit
       const diffSize = Buffer.byteLength(fileDiff.diff, 'utf-8');
       if (diffSize <= this.config.maxDiffSizeBytes) {
         try {
-          geminiResult = await this.runGeminiReview(fileDiff, teamRules, fileContent);
-          allIssues.push(...geminiResult.issues);
+          // Apply smart diff chunking if diff is large
+          const chunks = chunkDiff(fileDiff, this.config.diffChunker);
+
+          if (chunks.length === 0) {
+            // No meaningful changes to review
+            console.log(`[Sentinel] No meaningful changes in ${fileDiff.filePath} for Gemini review`);
+          } else if (chunks.length === 1) {
+            // Single chunk - review directly with PII scrubbing
+            const scrubbedDiff = this.piiScrubber.scrubDiff(chunks[0].diffContent);
+            if (scrubbedDiff.wasModified) {
+              console.log(
+                `[Sentinel] PII scrubbed ${scrubbedDiff.redactionCount} items from ${fileDiff.filePath} (${scrubbedDiff.redactedCategories.join(', ')})`
+              );
+            }
+
+            const scrubbedFileDiff: FileDiff = {
+              ...fileDiff,
+              diff: scrubbedDiff.content
+            };
+
+            geminiResult = await this.runGeminiReview(scrubbedFileDiff, teamRules, fileContent);
+            allIssues.push(...geminiResult.issues);
+          } else {
+            // Multiple chunks - review each chunk and aggregate results
+            console.log(
+              `[Sentinel] Splitting ${fileDiff.filePath} into ${chunks.length} chunks for Gemini review`
+            );
+
+            const chunkResults: GeminiReviewResult[] = [];
+            for (const chunk of chunks) {
+              const scrubbedDiff = this.piiScrubber.scrubDiff(chunk.diffContent);
+              if (scrubbedDiff.wasModified) {
+                console.log(
+                  `[Sentinel] PII scrubbed ${scrubbedDiff.redactionCount} items from chunk ${chunk.chunkIndex + 1}/${chunks.length}`
+                );
+              }
+
+              const scrubbedFileDiff: FileDiff = {
+                ...fileDiff,
+                diff: scrubbedDiff.content
+              };
+
+              const result = await this.runGeminiReview(scrubbedFileDiff, teamRules, fileContent);
+              chunkResults.push(result);
+            }
+
+            // Aggregate results from all chunks
+            const aggregatedIssues: ReviewIssue[] = [];
+            let summary = '';
+            let passed = true;
+            let totalDurationMs = 0;
+
+            for (const result of chunkResults) {
+              aggregatedIssues.push(...result.issues);
+              if (result.summary) {
+                summary += result.summary + ' ';
+              }
+              if (!result.passed) passed = false;
+              totalDurationMs += result.durationMs;
+            }
+
+            geminiResult = {
+              issues: aggregatedIssues,
+              summary: summary.trim(),
+              passed,
+              durationMs: totalDurationMs
+            };
+            allIssues.push(...aggregatedIssues);
+          }
         } catch (error) {
           console.error('[Sentinel] Gemini review failed:', error);
           // Continue with Fast-Gate results only

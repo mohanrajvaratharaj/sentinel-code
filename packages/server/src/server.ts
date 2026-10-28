@@ -31,6 +31,11 @@ import {
   getGitRoot,
   hasUncommittedChanges
 } from './git-engine';
+import {
+  generateTestScaffold,
+  shouldSuggestTests,
+  createTestFileTextEdit
+} from './test-generator';
 
 /**
  * LSP Server for Sentinel Code Review
@@ -57,6 +62,9 @@ let analyzer: Analyzer | null = null;
 let documentsByUri = new Map<string, TextDocument>();
 let analysisInProgress = new Set<string>();
 let gitRoot: string | null = null;
+
+// Cache of analysis results per URI, so onCodeAction can access issues
+let analysisResultsCache = new Map<string, { issues: ReviewIssue[]; fileContent?: string }>();
 
 /**
  * Logger for server messages
@@ -296,6 +304,12 @@ async function analyzeDocument(uri: string) {
 
     connection.sendDiagnostics({ uri, diagnostics });
 
+    // Cache analysis results for code actions
+    analysisResultsCache.set(uri, {
+      issues: result.allIssues,
+      fileContent
+    });
+
     if (result.allIssues.length > 0) {
       logInfo(
         `Analysis complete for ${relativePath}: ${result.allIssues.length} issues found in ${result.totalDurationMs}ms`
@@ -320,11 +334,19 @@ connection.onCodeAction(async (params: CodeActionParams): Promise<CodeAction[] |
 
   const codeActions: CodeAction[] = [];
 
+  // Get cached analysis results for this file
+  const cached = analysisResultsCache.get(uri);
+  if (!cached) {
+    return null;
+  }
+
+  const { issues, fileContent } = cached;
+
   // Filter diagnostics to find Sentinel issues
   for (const diagnostic of context.diagnostics) {
     if (diagnostic.source?.startsWith('sentinel-code/')) {
-      // Try to find the original issue
-      const issue = findIssueByDiagnostic(uri, diagnostic);
+      // Try to find the original issue from the cache
+      const issue = findIssueByDiagnostic(issues, diagnostic);
       if (issue && issue.suggestedFix) {
         const codeAction = toLspCodeAction(issue, uri);
         if (codeAction) {
@@ -334,16 +356,53 @@ connection.onCodeAction(async (params: CodeActionParams): Promise<CodeAction[] |
     }
   }
 
+  // Add test generation QuickFix if issues suggest tests would be helpful
+  if (shouldSuggestTests(issues) && fileContent) {
+    const filePath = URI.parse(uri).fsPath;
+    const relativePath = path.relative(workspaceRoot, filePath);
+
+    const generatedTest = generateTestScaffold(
+      relativePath,
+      fileContent,
+      issues,
+      config.testGenerator
+    );
+
+    if (generatedTest) {
+      const testEdit = createTestFileTextEdit(generatedTest);
+      codeActions.push({
+        title: testEdit.title,
+        kind: CodeActionKind.Refactor,
+        diagnostics: [],
+        isPreferred: false,
+        edit: {
+          changes: {
+            [testEdit.uri]: testEdit.edits
+          }
+        }
+      });
+    }
+  }
+
   return codeActions.length > 0 ? codeActions : null;
 });
 
 /**
- * Find the original ReviewIssue for a diagnostic
+ * Find the original ReviewIssue for a diagnostic using the cached issues.
  */
-function findIssueByDiagnostic(uri: string, diagnostic: Diagnostic): ReviewIssue | null {
-  // This is a simplified lookup - in production, you'd maintain a cache of issues
-  // For now, we return null as the issues are ephemeral
-  // The code action will still work for issues that have suggestedFix
+function findIssueByDiagnostic(issues: ReviewIssue[], diagnostic: Diagnostic): ReviewIssue | null {
+  // Match by code and range
+  for (const issue of issues) {
+    if (issue.code === diagnostic.code) {
+      const issueLine = (issue.line ?? 1) - 1;
+      const diagLine = diagnostic.range.start.line;
+
+      // Allow a small tolerance for line matching
+      if (Math.abs(issueLine - diagLine) <= 2) {
+        return issue;
+      }
+    }
+  }
   return null;
 }
 
