@@ -112,6 +112,42 @@ export interface FileDiff {
 }
 
 /**
+ * Configuration for PII scrubbing before sending diffs to external APIs.
+ */
+export interface PIIScrubberConfig {
+  /** Whether to enable PII scrubbing (default: true) */
+  enabled?: boolean;
+  /** Categories to exclude from scrubbing */
+  excludedCategories?: string[];
+  /** Whether to redact file paths containing usernames (default: true) */
+  redactFilePaths?: boolean;
+}
+
+/**
+ * Configuration for smart diff chunking.
+ */
+export interface DiffChunkerConfig {
+  /** Maximum characters per chunk (default: ~4000, roughly 1000 tokens) */
+  maxChunkSize?: number;
+  /** Whether to strip whitespace-only changes (default: true) */
+  stripWhitespace?: boolean;
+  /** Whether to detect and prioritize function bodies (default: true) */
+  detectFunctions?: boolean;
+}
+
+/**
+ * Configuration for automated test generation.
+ */
+export interface TestGeneratorConfig {
+  /** Default test framework to use (overrides auto-detection) */
+  framework?: 'jest' | 'pytest';
+  /** Whether to include async test wrappers (default: true) */
+  includeAsyncWrappers?: boolean;
+  /** Whether to include edge case tests (default: true) */
+  includeEdgeCases?: boolean;
+}
+
+/**
  * Configuration for the Sentinel code review tool.
  */
 export interface SentinelConfig {
@@ -131,6 +167,12 @@ export interface SentinelConfig {
   autoAnalyzeOnSave: boolean;
   /** Maximum diff size in bytes before skipping Gemini review */
   maxDiffSizeBytes: number;
+  /** PII scrubbing configuration */
+  piiScrubber?: PIIScrubberConfig;
+  /** Smart diff chunking configuration */
+  diffChunker?: DiffChunkerConfig;
+  /** Test generation configuration */
+  testGenerator?: TestGeneratorConfig;
 }
 
 /**
@@ -144,7 +186,20 @@ export const DEFAULT_CONFIG: SentinelConfig = {
   rulesFile: '.github/review-rules.md',
   monitoredExtensions: ['.ts', '.js', '.tsx', '.jsx', '.py', '.go'],
   autoAnalyzeOnSave: true,
-  maxDiffSizeBytes: 1024 * 1024 // 1MB
+  maxDiffSizeBytes: 1024 * 1024, // 1MB
+  piiScrubber: {
+    enabled: true,
+    redactFilePaths: true
+  },
+  diffChunker: {
+    maxChunkSize: 4000,
+    stripWhitespace: true,
+    detectFunctions: true
+  },
+  testGenerator: {
+    includeAsyncWrappers: true,
+    includeEdgeCases: true
+  }
 };
 
 /**
